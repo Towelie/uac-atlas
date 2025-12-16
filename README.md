@@ -1,63 +1,83 @@
-# uac-atlas
+# uac-fleet-ai
 
-High-signal analysis and fleet correlation for Unix-like Artifact Collector (UAC) output.
+AI-assisted post-collection analysis and fleet correlation for UAC (Unix-like Artifact Collector) outputs.
 
----
+This tool reads existing UAC collections from disk, extracts a fixed set of artifacts, sends truncated evidence to an OpenAI-compatible Chat Completions API, stores the model’s JSON response, and correlates results across multiple hosts.
 
-## Overview
+It is read-only and post-collection.
 
-`uac-atlas` is a post-collection analysis framework for **Unix-like Artifact Collector (UAC)** data.  
-It focuses on extracting and analyzing **high-value host artifacts** (identity, persistence, execution, scheduling, and network state) rather than ingesting large raw logs or full disk images.
+## What it reads
 
-The project is designed to support:
+For each host directory under `--fleet-root`, the tool attempts to read the following paths if they exist.
 
-- Rapid host compromise assessment
-- Fleet-wide correlation across multiple UAC collections
-- Evidence-based triage with explicit confidence scoring
-- Analyst review, not automated remediation
+Explicit files:
+- system/etc/passwd
+- system/etc/group
+- system/etc/shadow
+- system/etc/sudoers
+- system/etc/ssh/sshd_config
+- system/etc/ssh/ssh_config
+- system/uname.txt
+- system/lsmod.txt
+- network/ip_addr.txt
+- network/ip_route.txt
+- network/ss_tulpn.txt
+- network/netstat_tulpn.txt
+- network/resolv.conf
+- network/hosts
+- processes/ps_aux.txt
+- processes/pstree.txt
+- packages/dpkg.txt
+- packages/rpm.txt
+- logs/lastlog.txt
+- logs/wtmp.txt
+- logs/btmp.txt
 
-Optional LLM-assisted enrichment can be used to map findings to **MITRE ATT&CK**, extract higher-level indicators, and assess likelihood of compromise.
+Directory ingestion (recursive file reads only):
+- persistence/
+- cron/
+- systemd/
+- services/
+- users/
 
----
+For each file read, the tool records SHA-256, size, mtime, and truncated content.  
+Some sensitive paths are truncated more aggressively.
 
-## Design Goals
+## Analysis performed
 
-- **High signal, low noise**  
-  Prioritize artifacts attackers commonly abuse and forget to clean up.
+Local:
+- Regex-based IOC extraction over collected text (IPs, domains, URLs, hashes, emails, paths)
 
-- **Explainable output**  
-  Every finding includes evidence, technique mapping, and confidence rationale.
+AI-assisted:
+- Sends extracted artifacts and local IOCs to the model
+- Expects strict JSON containing:
+  - Overall compromise likelihood
+  - Findings with evidence
+  - MITRE ATT&CK technique IDs
+  - Model-extracted IOCs
+  - Confidence and severity
 
-- **Fleet-aware**  
-  Identify shared indicators and techniques across multiple hosts.
+## Fleet correlation
 
-- **Analyst-first**  
-  The tool assists investigation; it does not make decisions for you.
+After all hosts are processed, the tool correlates:
+- Shared ATT&CK techniques across hosts
+- Shared IOCs across hosts
+- Hosts ranked by model-provided compromise likelihood
 
----
+## Output
 
-## Non-Goals
+Per host:
+- bundle.json
+- regex_iocs.json
+- analysis.json
 
-`uac-atlas` intentionally does **not** attempt to:
+Fleet-level:
+- fleet_summary.json
+- fleet_features.json
+- fleet_summary.csv
 
-- Replace full forensic analysis
-- Ingest or analyze large raw logs (syslog, auditd, PCAPs)
-- Perform live response or containment
-- Automatically remediate or block activity
-- Act as an EDR or detection engine
+## Usage
 
----
+Set OPENAI_API_KEY, then run:
 
-## What It Analyzes
-
-From UAC collections, `uac-atlas` targets:
-
-- **Identity & privilege**
-  - Users, groups, sudo configuration
-- **Persistence mechanisms**
-  - systemd services, init scripts, cron jobs
-- **Scheduled execution**
-  - cron, timers
-- **Process & execution state**
-  - process listings, command lines, parent-child trees
-- **Network**
+python3 uac_fleet_ai.py --fleet-root /path/to/uac_collections --out ./results
