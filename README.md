@@ -1,83 +1,124 @@
 # uac-fleet-ai
 
-AI-assisted post-collection analysis and fleet correlation for UAC (Unix-like Artifact Collector) outputs.
+Post-collection analysis and fleet correlation for  
+**UAC (Unix-like Artifact Collector)** outputs using an OpenAI-compatible LLM.
 
-This tool reads existing UAC collections from disk, extracts a fixed set of artifacts, sends truncated evidence to an OpenAI-compatible Chat Completions API, stores the model’s JSON response, and correlates results across multiple hosts.
+This tool reads existing UAC collections from disk, extracts a fixed set of artifacts,
+performs local IOC extraction, submits compact evidence to an AI endpoint, stores the
+model’s JSON output, and correlates results across multiple hosts.
 
-It is read-only and post-collection.
+All operations are read-only.
 
-## What it reads
+---
 
-For each host directory under `--fleet-root`, the tool attempts to read the following paths if they exist.
+## Overview
 
-Explicit files:
-- system/etc/passwd
-- system/etc/group
-- system/etc/shadow
-- system/etc/sudoers
-- system/etc/ssh/sshd_config
-- system/etc/ssh/ssh_config
-- system/uname.txt
-- system/lsmod.txt
-- network/ip_addr.txt
-- network/ip_route.txt
-- network/ss_tulpn.txt
-- network/netstat_tulpn.txt
-- network/resolv.conf
-- network/hosts
-- processes/ps_aux.txt
-- processes/pstree.txt
-- packages/dpkg.txt
-- packages/rpm.txt
-- logs/lastlog.txt
-- logs/wtmp.txt
-- logs/btmp.txt
+uac-fleet-ai is designed to sit **after UAC collection** and assist analysts with
+initial host triage and fleet-level pattern discovery.
 
-Directory ingestion (recursive file reads only):
-- persistence/
-- cron/
-- systemd/
-- services/
-- users/
+It does not collect artifacts, access live systems, or perform remediation.
 
-For each file read, the tool records SHA-256, size, mtime, and truncated content.  
-Some sensitive paths are truncated more aggressively.
+---
+
+## What it does
+
+- Reads a predefined set of files and directories from UAC collections
+- Records file metadata (SHA-256, size, mtime) and truncated content
+- Performs local regex-based IOC extraction
+- Sends artifacts and local IOCs to an OpenAI-compatible Chat Completions API
+- Stores model-generated JSON output without modification or validation
+- Correlates model output and extracted IOCs across hosts
+
+---
+
+## Artifacts read
+
+For each host directory under `--fleet-root`, the following paths are read **if present**.
+
+### Files
+- system/etc/passwd  
+- system/etc/group  
+- system/etc/shadow  
+- system/etc/sudoers  
+- system/etc/ssh/sshd_config  
+- system/etc/ssh/ssh_config  
+- system/uname.txt  
+- system/lsmod.txt  
+- network/ip_addr.txt  
+- network/ip_route.txt  
+- network/ss_tulpn.txt  
+- network/netstat_tulpn.txt  
+- network/resolv.conf  
+- network/hosts  
+- processes/ps_aux.txt  
+- processes/pstree.txt  
+- packages/dpkg.txt  
+- packages/rpm.txt  
+- logs/lastlog.txt  
+- logs/wtmp.txt  
+- logs/btmp.txt  
+
+### Directories (recursive file reads only)
+- persistence/  
+- cron/  
+- systemd/  
+- services/  
+- users/  
+
+For each file, SHA-256, size, mtime, and truncated content are recorded.  
+Sensitive paths are truncated more aggressively.
+
+---
 
 ## Analysis performed
 
-Local:
-- Regex-based IOC extraction over collected text (IPs, domains, URLs, hashes, emails, paths)
+### Local
+- Regex-based IOC extraction:
+  - IP addresses (IPv4/IPv6)
+  - Domains
+  - URLs
+  - MD5 / SHA1 / SHA256 hashes
+  - Email addresses
+  - UNIX-like file paths
 
-AI-assisted:
-- Sends extracted artifacts and local IOCs to the model
-- Expects strict JSON containing:
-  - Overall compromise likelihood
+### AI-assisted
+- Requests model-generated:
   - Findings with evidence
   - MITRE ATT&CK technique IDs
   - Model-extracted IOCs
-  - Confidence and severity
+  - Confidence scores and severity
+  - Overall compromise likelihood
+
+AI output is stored as-is and is not validated beyond JSON parsing.
+
+---
 
 ## Fleet correlation
 
 After all hosts are processed, the tool correlates:
-- Shared ATT&CK techniques across hosts
+- Shared ATT&CK technique IDs across hosts
 - Shared IOCs across hosts
 - Hosts ranked by model-provided compromise likelihood
 
-## Output
+Correlation is string-based and result-driven only.
 
-Per host:
-- bundle.json
-- regex_iocs.json
-- analysis.json
-
-Fleet-level:
-- fleet_summary.json
-- fleet_features.json
-- fleet_summary.csv
+---
 
 ## Usage
 
-Set OPENAI_API_KEY, then run:
+Set `OPENAI_API_KEY`, then run:
 
 python3 uac_fleet_ai.py --fleet-root /path/to/uac_collections --out ./results
+
+Use `--skip-ai` to disable AI calls while keeping local IOC extraction
+and fleet correlation.
+
+---
+
+## Out of scope
+
+- Artifact collection
+- Live system access
+- Validation of AI output
+- Detection guarantees
+- Remediation or response actions
