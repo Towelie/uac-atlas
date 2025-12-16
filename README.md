@@ -1,4 +1,4 @@
-# uac-fleet-ai
+# uac-atlas
 
 Post-collection analysis and fleet correlation for  
 **UAC (Unix-like Artifact Collector)** outputs using an OpenAI-compatible LLM.
@@ -13,7 +13,7 @@ All operations are read-only.
 
 ## Overview
 
-uac-fleet-ai is designed to sit **after UAC collection** and assist analysts with
+uac-atlas is designed to sit **after UAC collection** and assist analysts with
 initial host triage and fleet-level pattern discovery.
 
 It does not collect artifacts, access live systems, or perform remediation.
